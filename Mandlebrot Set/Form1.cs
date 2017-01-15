@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Mandlebrot_Set
 {
@@ -16,7 +17,9 @@ namespace Mandlebrot_Set
     {
         // Thread info array.
         //private ArrayList tiArrayList;
-        private static int maxThreads = 4;
+        //private static int maxThreads = 4;
+        private static readonly object _locker = new object();
+        private static int maxThreads = 1;
         private ThreadInfo[] threadInfoArray = null;
         private int numberActiveBackGroundThreads = 0; // To count number of active threads.
         // private Boolean threadsActive = false;
@@ -25,6 +28,12 @@ namespace Mandlebrot_Set
         const int bitmapWidth = 1800; // Size of the bitmap.
         //const int bitmapWidth = 1040; // Size of the bitmap.
         const int bitmapHeight = 1040;
+        Point mainBmpLocationInForm = new Point();
+        private void UpdateMainBmpLocastionInForm()
+        {
+            mainBmpLocationInForm.X = Math.Max((ClientRectangle.Width - mainBmp.Width) / 2, 0);
+            mainBmpLocationInForm.Y = Math.Max((ClientRectangle.Height - mainBmp.Height) / 2, 0);
+        }
 
         //private const int bitmapWidth = 81;  // Size of the bitmap.
         //private const int bitmapHeight = 81;
@@ -121,9 +130,10 @@ namespace Mandlebrot_Set
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+
 
             //calcMandlebrotEscapeVal(new Complex(-1, 1));
+            UpdateMainBmpLocastionInForm();
 
             this.panel1.BackColor = Color.FromKnownColor(KnownColor.Transparent);
 
@@ -157,6 +167,7 @@ namespace Mandlebrot_Set
         //}
 
 
+
 //When any thread finishes, the backgroundWorkerCalcs_RunWorkerCompleted function 
 //    •	Copies the updated bitmap to the main bitmap and disposes of the section bmp and invalidate that section of the main bmp image so it is repainted.
 //    •	checks the noImageRowsCalcRequested value to see if all rows have been issued for calculation.  
@@ -165,64 +176,80 @@ namespace Mandlebrot_Set
 
         private void backgroundWorkerCalcs_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            // First, handle the case where an exception was thrown.
-            if (e.Error != null)
+            // Grab lock to make sure that no other thread updates the main bitmap (CopyBitmapSectionToFormBitmap()) or any other shared fields (e.g numberActiveBackGroundThreads) whilst this thread is updating.
+            lock (_locker)
             {
-                MessageBox.Show(e.Error.Message);
-            }
-
-            // decrement the count of active threads
-            numberActiveBackGroundThreads--;
-
-            // Get the BackgroundWorker that raised this event.
-            BackgroundWorker worker = sender as BackgroundWorker;
-
-            if (e.Cancelled)
-            {
-                // Thread has been cancelled so exit without further updates.
-                return;
-            }
-
-            // Find which threadInfo element this is so that we can reinstatiate this thread with the next section of the main bmp.
-            ThreadInfo ti = null;
-            for (int i = 0; i < maxThreads; i++) 
-            {
-                if (threadInfoArray[i].bwThread == worker)
+                // First, handle the case where an exception was thrown.
+                if (e.Error != null)
                 {
-                    ti = threadInfoArray[i];
-                    break;
+                    MessageBox.Show(e.Error.Message);
                 }
-            }
 
-            if (ti != null)
-            {
-                // Copy the update image from this sectionBmp to the main bmp.
-                Graphics mainBmpGraphics = Graphics.FromImage(mainBmp);
-                int bmpSectionHeight = ti.endRow - ti.startRow + 1;
-                Rectangle updateRect = new Rectangle(0, ti.startRow, ti.mainBmpWidth, bmpSectionHeight);
-                mainBmpGraphics.DrawImage(ti.bmpSection, updateRect, new Rectangle(0, 0, ti.mainBmpWidth, bmpSectionHeight), GraphicsUnit.Pixel);
-                updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
-                CopyBitmapSectionToFormBitmap(ti.bmpSection, updateRect);
+                // decrement the count of active threads
+                numberActiveBackGroundThreads--;
 
-                if (imageCalcInProgress == false || lastImageRowCalcRequested + 1 >= bitmapHeight)
+                // Get the BackgroundWorker that raised this event.
+                BackgroundWorker worker = sender as BackgroundWorker;
+
+                if (e.Cancelled)
                 {
-                    // We've finished requesting calculation of any further elements.
-                    if (numberActiveBackGroundThreads <= 0)
+                    // Thread has been cancelled so exit without further updates.
+                    return;
+                }
+
+                // Find which threadInfo element this is so that we can reinstatiate this thread with the next section of the main bmp.
+                ThreadInfo ti = null;
+                for (int i = 0; i < maxThreads; i++)
+                {
+                    if (threadInfoArray[i].bwThread == worker)
                     {
-                        // The final running thread has just ended so we're finished calculating.
-                        imageCalcInProgress = false;
-                        lastImageRowCalcRequested = -1;
-                        UseWaitCursor = false;
-                        Cursor = Cursors.Default;
+                        ti = threadInfoArray[i];
+                        break;
                     }
                 }
-                else
+
+                if (ti != null)
                 {
-                    // We've not finished calculation so add another thread.
-                    AddImageCalcThread(ti);
+                    // Copy the update image from this sectionBmp to the main bmp.
+                    int bmpSectionHeight = ti.endRow - ti.startRow + 1;
+                    Rectangle updateRect = new Rectangle(0, ti.startRow, ti.mainBmpWidth, bmpSectionHeight);
+                    //updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
+                    //CopyBitmapSectionToFormBitmap(ti.bmpSection, updateRect);
+
+
+                    // Copy the update image from this sectionBmp to the main bmp.
+                    Graphics mainBmpGraphics = Graphics.FromImage(mainBmp);
+                    //updateRect.Offset(mainBmpLocationInForm);
+                    mainBmpGraphics.DrawImage(ti.bmpSection, updateRect, new Rectangle(0, 0, ti.bmpSection.Width, ti.bmpSection.Height), GraphicsUnit.Pixel);
+
+                    // Change X coord to the correct LHS in the form (vs the bitmap) so it can be invalidated.
+                    //updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
+                    this.Invalidate(updateRect);
+
+                    // Cleanup
+                    mainBmpGraphics.Dispose();
+
+
+
+
+                    if (imageCalcInProgress == false || lastImageRowCalcRequested + 1 >= bitmapHeight)
+                    {
+                        // We've finished requesting calculation of any further elements.
+                        if (numberActiveBackGroundThreads <= 0)
+                        {
+                            // The final running thread has just ended so we're finished calculating.
+                            imageCalcInProgress = false;
+                            lastImageRowCalcRequested = -1;
+                            UseWaitCursor = false;
+                            Cursor = Cursors.Default;
+                        }
+                    }
+                    else
+                    {
+                        // We've not finished calculation so add another thread.
+                        AddImageCalcThread(ti);
+                    }
                 }
-                // Cleanup
-                mainBmpGraphics.Dispose();
             }
  
         }
@@ -232,6 +259,7 @@ namespace Mandlebrot_Set
         /// <param name="bmp">The bitmap to copy to the Form's mainBmp instance</param>
         protected void CopyBitmapToFormBitmap(Bitmap bmp)
         {
+            Debug.Assert(false, "Delete CopyBitmapToFormBitmap() funciton as don't like it");
             CopyBitmapSectionToFormBitmap(bmp, new Rectangle(0, 0, mainBmp.Width, mainBmp.Height));
         }
 
@@ -243,11 +271,20 @@ namespace Mandlebrot_Set
         /// <param name="updateRect">Recangle with coordinates in the mainBmp to which the section should be updated to</param>
         protected void CopyBitmapSectionToFormBitmap(Bitmap bmpSection, Rectangle updateRect)
         {
+            Debug.Assert(false, "Delete CopyBitmapSectionToFormBitmap() funciton as don't like it");
+
             // Copy the update image from this sectionBmp to the main bmp.
             Graphics mainBmpGraphics = Graphics.FromImage(mainBmp);
             mainBmpGraphics.DrawImage(bmpSection, updateRect, new Rectangle(0, 0, mainBmp.Width, bmpSection.Height), GraphicsUnit.Pixel);
+
+            // Change X coord to the correct LHS in the form (vs the bitmap) so it can be invalidated.
             updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
+            updateRect.Y = Math.Max((this.ClientRectangle.Height - mainBmp.Height) / 2, 0);
             this.Invalidate(updateRect);
+
+            // Cleanup
+            mainBmpGraphics.Dispose();
+
         }
 
         /// <summary>
@@ -481,9 +518,47 @@ namespace Mandlebrot_Set
             e.Graphics.Clear(Color.Black);
             //e.Graphics.DrawImage(mainBmp, Math.Max((this.Width - mainBmp.Width) / 2, 0), Math.Max((this.Height - mainBmp.Height) / 2, 0), mainBmp.Width, mainBmp.Height);
             Rectangle src = new Rectangle();
-            src = e.ClipRectangle;
-            src.Offset(-Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0), -Math.Max((this.ClientRectangle.Height - mainBmp.Height) / 2, 0));
-            e.Graphics.DrawImage(mainBmp, e.ClipRectangle, src, GraphicsUnit.Pixel);
+            Rectangle dest = new Rectangle();
+
+            if (e.ClipRectangle.X < mainBmpLocationInForm.X)
+            {
+                // Trying to paint a portion of the screen which requires a margin as the bmp is smaller than the form.
+                src.X = 0;
+                dest.X = mainBmpLocationInForm.X;
+                //src.Width = e.ClipRectangle.Width;
+                dest.Width = Math.Min(e.ClipRectangle.Width - (mainBmpLocationInForm.X - e.ClipRectangle.X), bitmapWidth);
+                src.Width = dest.Width;
+            }
+            else
+            {
+                // Trying to paint a portion of the screen which requires no margin as it's into a part of the bitmap.
+                src.X = e.ClipRectangle.X - mainBmpLocationInForm.X;
+                src.Width = Math.Min(e.ClipRectangle.Width, bitmapWidth - src.X);
+                dest.X = e.ClipRectangle.X;
+                dest.Width = src.Width;
+            }
+
+            if (e.ClipRectangle.Y < mainBmpLocationInForm.Y)
+            {
+                // Trying to paint a portion of the screen which requires a margin as the bmp is smaller than the form.
+                src.Y = 0;
+                dest.Y = mainBmpLocationInForm.Y;
+                //src.Height = e.ClipRectangle.Height;
+                dest.Height = Math.Min(e.ClipRectangle.Height - (mainBmpLocationInForm.Y - e.ClipRectangle.Y), bitmapHeight);
+                src.Height = dest.Height;
+            }
+            else
+            {
+                // Trying to paint a portion of the screen which requires no margin as it's into a part of the bitmap.
+                src.Y = e.ClipRectangle.Y - mainBmpLocationInForm.Y;
+                src.Height = Math.Min(e.ClipRectangle.Height, bitmapHeight - src.Y);
+                dest.Y = e.ClipRectangle.Y;
+                dest.Height = src.Height;
+            }
+
+            //src = e.ClipRectangle;
+            //src.Offset(-mainBmpLocationInForm.X, -mainBmpLocationInForm.Y);
+            e.Graphics.DrawImage(mainBmp, dest, src, GraphicsUnit.Pixel);
             //e.Graphics.DrawImage(mainBmp, Math.Max((this.Width - mainBmp.Width) / 2, 0), Math.Max((this.Height - mainBmp.Height) / 2, 0), 9, 9);
         }
 
@@ -642,6 +717,13 @@ namespace Mandlebrot_Set
                     
             }
 
+        }
+
+
+        private void Form1_SizeChanged(object sender, EventArgs e)
+        {
+            UpdateMainBmpLocastionInForm();
+            Invalidate();
         }
 
         //    private void pictureBox1_MouseDown(object sender, MouseEventArgs e)

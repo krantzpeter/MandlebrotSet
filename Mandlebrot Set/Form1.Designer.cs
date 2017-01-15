@@ -49,21 +49,16 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(893, 681);
             this.Controls.Add(this.panel1);
+            this.KeyPreview = true;
             this.Name = "Form1";
             this.Text = "Form1";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             this.Load += new System.EventHandler(this.Form1_Load);
-
-            // Set up keyboard event handler.
-            //System.Windows.Forms.TextBox TextBox1 = new System.Windows.Forms.TextBox();
-            //panel1.Controls.Add(TextBox1);
-            this.Controls.Add(panel1);
-            this.KeyPreview = true;
-            this.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.Form1_KeyPress);
-
+            this.SizeChanged += new System.EventHandler(this.Form1_SizeChanged);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.Form1_Paint);
+            this.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.Form1_KeyPress);
             this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.Form1_MouseDown);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.Form1_MouseMove);
             this.MouseUp += new System.Windows.Forms.MouseEventHandler(this.Form1_MouseUp);
