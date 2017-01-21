@@ -42,6 +42,7 @@
             this.panel1.Size = new System.Drawing.Size(433, 145);
             this.panel1.TabIndex = 0;
             this.panel1.Visible = false;
+            this.panel1.Paint += new System.Windows.Forms.PaintEventHandler(this.panel1_Paint);
             // 
             // Form1
             // 

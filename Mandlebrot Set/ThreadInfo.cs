@@ -5,6 +5,7 @@ using System.Text;
 using System.Drawing;
 using System.ComponentModel;
 using System.Threading;
+using FloatType = System.Double;
 
 namespace Mandlebrot_Set
 {
@@ -16,10 +17,10 @@ namespace Mandlebrot_Set
         public int mainBmpHeight;
         public int startRow;       // the pixel row number (first row = 0) of the first row in the main image to calc
         public int endRow;         // the row number of last row to calc
-        public double minX;        // double precision min X value of scaled bounds of the main Bmp image 
-        public double maxX;        // double precision max X value of scaled bounds of the main Bmp image 
-        public double minY;        // double precision min Y value of scaled bounds of the main Bmp image
-        public double maxY;        // double precision max Y value of scaled bounds of the main Bmp image
+        public FloatType minX;        // FloatType precision min X value of scaled bounds of the main Bmp image 
+        public FloatType maxX;        // FloatType precision max X value of scaled bounds of the main Bmp image 
+        public FloatType minY;        // FloatType precision min Y value of scaled bounds of the main Bmp image
+        public FloatType maxY;        // FloatType precision max Y value of scaled bounds of the main Bmp image
         public Bitmap bmpSection = null; // working bmp with width mainBmpWidth and height (endRow – startRow + 1)
 
         

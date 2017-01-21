@@ -1,4 +1,9 @@
-﻿using System;
+﻿
+// #define debugPaint
+#define ShowPaintThreadProgress
+//#define stdColors
+
+using System;
 using System.Numerics;
 using System.Collections;
 using System.ComponentModel;
@@ -9,6 +14,10 @@ using System.Text;
 using System.Windows.Forms;
 using System.Threading;
 using System.Diagnostics;
+using FloatType = System.Double;
+
+using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace Mandlebrot_Set
 {
@@ -19,7 +28,7 @@ namespace Mandlebrot_Set
         //private ArrayList tiArrayList;
         //private static int maxThreads = 4;
         private static readonly object _locker = new object();
-        private static int maxThreads = 1;
+        private static int maxThreads = 16;
         private ThreadInfo[] threadInfoArray = null;
         private int numberActiveBackGroundThreads = 0; // To count number of active threads.
         // private Boolean threadsActive = false;
@@ -29,6 +38,7 @@ namespace Mandlebrot_Set
         //const int bitmapWidth = 1040; // Size of the bitmap.
         const int bitmapHeight = 1040;
         Point mainBmpLocationInForm = new Point();
+
         private void UpdateMainBmpLocastionInForm()
         {
             mainBmpLocationInForm.X = Math.Max((ClientRectangle.Width - mainBmp.Width) / 2, 0);
@@ -50,41 +60,55 @@ namespace Mandlebrot_Set
 
         private ArrayList mainBmpImageList = new ArrayList(); // Used to contain list of MandlebrotImage values that contain the image of each zoom level and associated Mandlebrot X and Y min and max values.
 
-        private const double baseval = 2.0;
-        private const double breakoutval = baseval * baseval;
-        private const double aspectRatio = (double)bitmapWidth / (double)bitmapHeight;
+        private const FloatType baseval = 2.0;
+        private const FloatType breakoutval = baseval * baseval;
+        private const FloatType aspectRatio = (FloatType)bitmapWidth / (FloatType)bitmapHeight;
 
-        private const double minXBound = -baseval * aspectRatio; // Outer bounds of the Mandelbrot set.
-        private const double maxXBound = baseval * aspectRatio;
-        private const double minYBound = baseval;
-        private const double maxYBound = -baseval;
+        private const FloatType minXBound = -baseval * aspectRatio; // Outer bounds of the Mandelbrot set.
+        private const FloatType maxXBound = baseval * aspectRatio;
+        private const FloatType minYBound = baseval;
+        private const FloatType maxYBound = -baseval;
 
         // Current scaled bounds of the current image.
-        //private double minX = minXBound;
-        //private double maxX = maxXBound;
-        //private double minY = minYBound;
-        //private double maxY = maxYBound;
-        private double minX;
-        private double maxX;
-        private double minY;
-        private double maxY;
+        //private FloatType minX = minXBound;
+        //private FloatType maxX = maxXBound;
+        //private FloatType minY = minYBound;
+        //private FloatType maxY = maxYBound;
+        private FloatType minX;
+        private FloatType maxX;
+        private FloatType minY;
+        private FloatType maxY;
 
         //private const int maxColorIndex = 768;
         private const int maxColorIndex = 768;
         private Color[] colors;
 
         // Increment values for each pixel in the image.
-        //private double XInc = (double)(maxXBound - minXBound) / ((double)bitmapWidth - 1);
-        //private double YInc = (double)(maxYBound - minYBound) / ((double)bitmapHeight - 1);
-        private double XInc;
-        private double YInc;
+        //private FloatType XInc = (FloatType)(maxXBound - minXBound) / ((FloatType)bitmapWidth - 1);
+        //private FloatType YInc = (FloatType)(maxYBound - minYBound) / ((FloatType)bitmapHeight - 1);
+        private FloatType XInc;
+        private FloatType YInc;
 
         private void setupColors()
         {
             colors = new Color [maxColorIndex+1];
+#if !stdColors
+            int r;
+            int g;
+            int b;
+            int colorBase = 0x000000;
+            int colorMult = 50;
+#endif
             for (int enumValue = 0; enumValue < colors.Length; enumValue++)
             {
+#if stdColors
                 colors[enumValue] = Color.FromKnownColor((KnownColor)(enumValue % 139 + 28));
+#else
+                r = ((enumValue & 0x1c0) >> 6 + colorBase) * colorMult % 256;
+                g = ((enumValue & 0x38) >> 3 + colorBase) * colorMult % 256;
+                b = ((enumValue & 0x7) + colorBase) * colorMult % 256;
+                colors[enumValue] = Color.FromArgb(255,r, g, b);
+#endif
                 //colors[enumValue] = Color.FromArgb((enumValue >= 256 ? 0 : enumValue), (enumValue >= 256 && enumValue < 512 ? enumValue % 256 : 0), (enumValue >= 512 ? enumValue % 256 : 0));
             }
 
@@ -134,6 +158,22 @@ namespace Mandlebrot_Set
 
             //calcMandlebrotEscapeVal(new Complex(-1, 1));
             UpdateMainBmpLocastionInForm();
+
+            typeof(Panel).GetProperty("DoubleBuffered",
+                          BindingFlags.NonPublic | BindingFlags.Instance)
+             .SetValue(panel1, true, null);
+
+            //Quadruple x;
+            //Quadruple y = 10;
+            //Quadruple z = 3;
+            //x = y / z;
+            //Debug.WriteLine(x);
+
+            // Clear main bitmap
+            using (Graphics g = Graphics.FromImage(mainBmp))
+                {
+                    g.Clear(BackColor);
+                }
 
             this.panel1.BackColor = Color.FromKnownColor(KnownColor.Transparent);
 
@@ -208,6 +248,9 @@ namespace Mandlebrot_Set
                     }
                 }
 
+#if ShowPaintThreadProgress
+                Debug.WriteLine("backgroundWorkerCalcs_RunWorkerCompleted() Thread ID " + Thread.CurrentThread.ManagedThreadId + " finished calculating rows " + ti.startRow + ", " + ti.endRow);
+#endif
                 if (ti != null)
                 {
                     // Copy the update image from this sectionBmp to the main bmp.
@@ -222,9 +265,13 @@ namespace Mandlebrot_Set
                     //updateRect.Offset(mainBmpLocationInForm);
                     mainBmpGraphics.DrawImage(ti.bmpSection, updateRect, new Rectangle(0, 0, ti.bmpSection.Width, ti.bmpSection.Height), GraphicsUnit.Pixel);
 
-                    // Change X coord to the correct LHS in the form (vs the bitmap) so it can be invalidated.
-                    //updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
+                    // Change coords to the correct psn in the form (vs the bitmap) so it can be invalidated.
+                    updateRect.Offset(mainBmpLocationInForm);
                     this.Invalidate(updateRect);
+                    //Application.DoEvents();
+#if ShowPaintThreadProgress
+                    Debug.WriteLine("backgroundWorkerCalcs_RunWorkerCompleted() Thread ID " + Thread.CurrentThread.ManagedThreadId + " invalidated Rect: " + updateRect);
+#endif
 
                     // Cleanup
                     mainBmpGraphics.Dispose();
@@ -253,40 +300,7 @@ namespace Mandlebrot_Set
             }
  
         }
-        /// <summary>
-        /// Copies a Bitmap to the Form's mainBmp bitmap and invalidates the rectange so it's repainted.
-        /// </summary>
-        /// <param name="bmp">The bitmap to copy to the Form's mainBmp instance</param>
-        protected void CopyBitmapToFormBitmap(Bitmap bmp)
-        {
-            Debug.Assert(false, "Delete CopyBitmapToFormBitmap() funciton as don't like it");
-            CopyBitmapSectionToFormBitmap(bmp, new Rectangle(0, 0, mainBmp.Width, mainBmp.Height));
-        }
-
-        /// <summary>
-        /// Copies a partial Bitmap ("section" Bitmap, which includes a number of rows of the form's main bitmap) 
-        /// to the Form's mainBmp bitmap and invalidates the rectange so it's repainted.
-        /// </summary>
-        /// <param name="bmpSection">Bitmap section to update</param>
-        /// <param name="updateRect">Recangle with coordinates in the mainBmp to which the section should be updated to</param>
-        protected void CopyBitmapSectionToFormBitmap(Bitmap bmpSection, Rectangle updateRect)
-        {
-            Debug.Assert(false, "Delete CopyBitmapSectionToFormBitmap() funciton as don't like it");
-
-            // Copy the update image from this sectionBmp to the main bmp.
-            Graphics mainBmpGraphics = Graphics.FromImage(mainBmp);
-            mainBmpGraphics.DrawImage(bmpSection, updateRect, new Rectangle(0, 0, mainBmp.Width, bmpSection.Height), GraphicsUnit.Pixel);
-
-            // Change X coord to the correct LHS in the form (vs the bitmap) so it can be invalidated.
-            updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
-            updateRect.Y = Math.Max((this.ClientRectangle.Height - mainBmp.Height) / 2, 0);
-            this.Invalidate(updateRect);
-
-            // Cleanup
-            mainBmpGraphics.Dispose();
-
-        }
-
+ 
         /// <summary>
         /// Calculates the Mandlebrot "escape value" for a given complex number.  Note that for a graph of the Mandlebrot
         /// set, the real and imaginary portions of the complex number are generally used as the X and Y values
@@ -298,8 +312,8 @@ namespace Mandlebrot_Set
         /// recursive calculations completed prior to a breakout value being generated or until a maximum avlue is reached.</returns>
         private int calcMandlebrotEscapeVal(Complex c)
         {
-            double Z;
-            double dblTmp;
+            FloatType Z;
+            FloatType dblTmp;
             Complex c1;
             Complex lastpassval;
 
@@ -347,15 +361,15 @@ namespace Mandlebrot_Set
         /// If it is zero, for 0 to maxThreads – 1, call AddImageCalcThread for the relevant threadInfo element.
         /// 
         /// </summary>
-        private void CreateMandelbrotImageThreads(double myMinX, double myMaxX, double myMinY, double myMaxY)
+        private void CreateMandelbrotImageThreads(FloatType myMinX, FloatType myMaxX, FloatType myMinY, FloatType myMaxY)
         {
             // Update the boundng values defining the overall image for the current Mandlebrot "zoom level"
             minX = myMinX;
             maxX = myMaxX;
             minY = myMinY;
             maxY = myMaxY;
-            XInc = (double)(maxX - minX) / (mainBmp.Width - 1);
-            YInc = (double)(maxY - minY) / (mainBmp.Height - 1);
+            XInc = (FloatType)(maxX - minX) / (mainBmp.Width - 1);
+            YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
 
             // Queue the task.
             //    threadsActive = true;
@@ -371,21 +385,26 @@ namespace Mandlebrot_Set
                 return;
             }
 
-            imageCalcInProgress = true;
 
-            // Divide number of rows of bitmap to calc into chunks of rowsToCalcPerThread
-
-            for (int threadNum = 0; threadNum < maxThreads; threadNum++)
+            // Grab lock to make sure that no other thread updates the imageCalcInProgress etc.
+            lock (_locker)
             {
-                if (threadInfoArray[threadNum].bwThread.IsBusy)
-                {   
-                    // This thread is not available
-                    throw new Exception("ERROR - numberActiveBackGroundThreads = 0 but thread " + threadNum + " is active.");
-                }
-                else
+                imageCalcInProgress = true;
+
+                // Divide number of rows of bitmap to calc into chunks of rowsToCalcPerThread
+
+                for (int threadNum = 0; threadNum < maxThreads; threadNum++)
                 {
-                    // Thread is available so set it up and start it.
-                    AddImageCalcThread(threadInfoArray[threadNum]);
+                    if (threadInfoArray[threadNum].bwThread.IsBusy)
+                    {
+                        // This thread is not available
+                        throw new Exception("ERROR - numberActiveBackGroundThreads = 0 but thread " + threadNum + " is active.");
+                    }
+                    else
+                    {
+                        // Thread is available so set it up and start it.
+                        AddImageCalcThread(threadInfoArray[threadNum]);
+                    }
                 }
             }
 
@@ -393,29 +412,33 @@ namespace Mandlebrot_Set
 
         private void AddImageCalcThread(ThreadInfo ti)
         {
-            ti.startRow = lastImageRowCalcRequested + 1;
-            ti.mainBmpWidth = bitmapWidth;
-            ti.mainBmpHeight = bitmapHeight;
-
-            if (ti.startRow >= ti.mainBmpHeight)
+            // Grab lock to make sure that no other thread updates the lastImageRowCalcRequested or numberActiveBackGroundThreads.
+            lock (_locker)
             {
-                // We've finished calculating the image so exit.
-                return;
-                //throw new Exception("ERROR - AddImageCalcThread() requested to calc rows beyond end of image.  Start row " + ti.startRow + " whereas image length " + ti.mainBmpHeight + ".");
+                ti.startRow = lastImageRowCalcRequested + 1;
+                ti.mainBmpWidth = bitmapWidth;
+                ti.mainBmpHeight = bitmapHeight;
+
+                if (ti.startRow >= ti.mainBmpHeight)
+                {
+                    // We've finished calculating the image so exit.
+                    return;
+                    //throw new Exception("ERROR - AddImageCalcThread() requested to calc rows beyond end of image.  Start row " + ti.startRow + " whereas image length " + ti.mainBmpHeight + ".");
+                }
+
+                ti.endRow = Math.Min(ti.startRow + rowsToCalcPerThread - 1, ti.mainBmpHeight - 1);
+                lastImageRowCalcRequested = ti.endRow;
+                ti.minX = minX;
+                ti.maxX = maxX;
+                ti.minY = minY;
+                ti.maxY = maxY;
+
+                //Call the "RunWorkerAsync()" method of the thread.  
+                //This will call the delegate method "backgroundWorkerFiles_DoWork()" method defined above.  
+                //The parameter passed (the loop counter "f") will be available through the delegate's argument "e" through the ".Argument" property.
+                ti.bwThread.RunWorkerAsync(ti);
+                numberActiveBackGroundThreads++;
             }
-
-            ti.endRow = Math.Min(ti.startRow + rowsToCalcPerThread - 1, ti.mainBmpHeight - 1);
-            lastImageRowCalcRequested = ti.endRow;
-            ti.minX = minX;
-            ti.maxX = maxX;
-            ti.minY = minY;
-            ti.maxY = maxY;
-
-            //Call the "RunWorkerAsync()" method of the thread.  
-            //This will call the delegate method "backgroundWorkerFiles_DoWork()" method defined above.  
-            //The parameter passed (the loop counter "f") will be available through the delegate's argument "e" through the ".Argument" property.
-            ti.bwThread.RunWorkerAsync(ti);
-            numberActiveBackGroundThreads++;
 
         }
 
@@ -423,7 +446,6 @@ namespace Mandlebrot_Set
         {
             // Get the BackgroundWorker that raised this event.
             BackgroundWorker worker = sender as BackgroundWorker;
-
 
             // Get argument from DoWorkEventArgs argument.  Can use any type here with cast
             ThreadInfo ti = (ThreadInfo)e.Argument;
@@ -448,11 +470,22 @@ namespace Mandlebrot_Set
             int startRow = ti.startRow;
             int endRow = ti.endRow;
             int myBitmapWidth = ti.mainBmpWidth;
-            double myMinX = ti.minX;
-            double myMinY = ti.minY;
-            double myXInc = (double)(ti.maxX - myMinX) / (ti.mainBmpWidth - 1);
-            double myYInc = (double)(ti.maxY - myMinY) / (ti.mainBmpHeight - 1);
+            FloatType myMinX = ti.minX;
+            FloatType myMinY = ti.minY;
+            FloatType myXInc = (FloatType)(ti.maxX - myMinX) / (ti.mainBmpWidth - 1);
+            FloatType myYInc = (FloatType)(ti.maxY - myMinY) / (ti.mainBmpHeight - 1);
             Bitmap bmp = ti.bmpSection;
+
+            //if (ti.endRow == bitmapHeight - 1)
+            //    Debugger.Break();
+            
+            using (Graphics g = Graphics.FromImage(ti.bmpSection))
+            {
+                g.Clear(BackColor);
+            }
+
+            Debug.WriteLine("createMandlebrotImageSection() Thread ID " + Thread.CurrentThread.ManagedThreadId + " started to calc rows " + ti.startRow + ", " + ti.endRow);
+            //Debug.WriteLine("createMandlebrotImageSection() Thread ID " + Thread.CurrentThread.ManagedThreadId + " myYInc " + myYInc + " yStart " + (myMinY + startRow * myYInc));
 
             for (bmpY = startRow; bmpY <= endRow; bmpY++)
             {
@@ -515,10 +548,14 @@ namespace Mandlebrot_Set
             //pictureBox1.Invalidate();
 
             //e.ClipRectangle
-            e.Graphics.Clear(Color.Black);
+            //e.Graphics.Clear(Color.Black);
             //e.Graphics.DrawImage(mainBmp, Math.Max((this.Width - mainBmp.Width) / 2, 0), Math.Max((this.Height - mainBmp.Height) / 2, 0), mainBmp.Width, mainBmp.Height);
             Rectangle src = new Rectangle();
             Rectangle dest = new Rectangle();
+
+            // If nothing to paint then exit.
+            if (e.ClipRectangle.Width == 0 && e.ClipRectangle.Height == 0)
+                return;
 
             if (e.ClipRectangle.X < mainBmpLocationInForm.X)
             {
@@ -560,6 +597,23 @@ namespace Mandlebrot_Set
             //src.Offset(-mainBmpLocationInForm.X, -mainBmpLocationInForm.Y);
             e.Graphics.DrawImage(mainBmp, dest, src, GraphicsUnit.Pixel);
             //e.Graphics.DrawImage(mainBmp, Math.Max((this.Width - mainBmp.Width) / 2, 0), Math.Max((this.Height - mainBmp.Height) / 2, 0), 9, 9);
+
+#if ShowPaintThreadProgress
+            Debug.WriteLine("Form1_Paint() Thread ID " + Thread.CurrentThread.ManagedThreadId + " Paint invalidated Rect: " + e.ClipRectangle);
+#endif
+
+#if debugPaint == true
+            // Check that what just got painted to the screen actually arrived on the screen by checking the pixel in the top left of the bit of the bitmap that
+            // just got painted to see it's the same colour as the pixel that is now on the screen
+            Color c1 = mainBmp.GetPixel(dest.X - mainBmpLocationInForm.X, dest.Y - mainBmpLocationInForm.Y);
+            Color c2 = GetPixel(dest.X, dest.Y);
+
+            if (c1 != c2)
+            {
+                Debugger.Break();
+            }
+#endif
+
         }
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
@@ -629,15 +683,16 @@ namespace Mandlebrot_Set
                 UseWaitCursor = true;
 
                 Rectangle r = new Rectangle();
-                r = this.panel1.DisplayRectangle;
-                r.Offset(this.panel1.Location);
-                r.Offset(-Math.Max((this.Width - mainBmp.Width) / 2, 0), -Math.Max((this.Height - mainBmp.Height) / 2, 0));
-                double myMaxX = minX + r.Right * XInc;
-                double myMinX = minX + r.X * XInc;
-                double myMaxY = minY + r.Bottom * YInc;
-                double myMinY = minY + r.Y * YInc;
-                //XInc = (double)(maxX - minX) / (mainBmp.Width - 1);
-                //YInc = (double)(maxY - minY) / (mainBmp.Height - 1);
+                r = this.panel1.Bounds;
+                //r.Offset(this.panel1.Location);
+                r.Offset(-mainBmpLocationInForm.X, -mainBmpLocationInForm.Y);
+                //r.Offset(-Math.Max((this.Width - mainBmp.Width) / 2, 0), -Math.Max((this.Height - mainBmp.Height) / 2, 0));
+                FloatType myMaxX = minX + r.Right * XInc;
+                FloatType myMinX = minX + r.X * XInc;
+                FloatType myMaxY = minY + r.Bottom * YInc;
+                FloatType myMinY = minY + r.Y * YInc;
+                //XInc = (FloatType)(maxX - minX) / (mainBmp.Width - 1);
+                //YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
 
                 //createMandlebrotImage();
                 CreateMandelbrotImageThreads(myMinX, myMaxX, myMinY, myMaxY);
@@ -710,11 +765,20 @@ namespace Mandlebrot_Set
             switch (e.KeyChar)
             {
                 case (char)Keys.Escape:
-
                     e.Handled = true;
-                    Application.Exit();
+                    if (dragActive)
+                    {
+                        // There's a drag going on so assume pressing escape is trying to cancel it.
+                        dragActive = false;
+                        dragBoxFromMouseDown = Rectangle.Empty;
+                        panel1.Visible = false;
+                        //panel1.Refresh();
+                    }
+                    else
+                    {
+                        Application.Exit();
+                    }
                     break;
-                    
             }
 
         }
@@ -724,6 +788,39 @@ namespace Mandlebrot_Set
         {
             UpdateMainBmpLocastionInForm();
             Invalidate();
+        }
+
+
+
+        [DllImport("gdi32.dll")]
+        public static extern bool BitBlt(IntPtr srchDc, int srcX, int srcY, int srcW, int srcH,
+                                IntPtr desthDc, int destX, int destY, int op);
+
+        public static Color GetPixel(int x, int y)
+        {
+            using (Bitmap screenPixel = new Bitmap(1, 1))
+            {
+                using (Graphics gdest = Graphics.FromImage(screenPixel))
+                {
+                    Process p = Process.GetCurrentProcess();
+                    p.Refresh();
+                    using (Graphics gsrc = Graphics.FromHwnd(p.MainWindowHandle))
+                    {
+                        IntPtr hsrcdc = gsrc.GetHdc();
+                        IntPtr hdc = gdest.GetHdc();
+                        BitBlt(hdc, 0, 0, 1, 1, hsrcdc, x, y, (int)CopyPixelOperation.SourceCopy);
+                        gdest.ReleaseHdc();
+                        gsrc.ReleaseHdc();
+                    }
+                }
+
+                return screenPixel.GetPixel(0, 0);
+            }
+        }
+
+        private void panel1_Paint(object sender, PaintEventArgs e)
+        {
+
         }
 
         //    private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
@@ -788,8 +885,8 @@ namespace Mandlebrot_Set
         //            minX = minX + r.X * XInc;
         //            maxY = minY + r.Bottom * YInc;
         //            minY = minY + r.Y * YInc;
-        //            XInc = (double)(maxX - minX) / (mainBmp.Width - 1);
-        //            YInc = (double)(maxY - minY) / (mainBmp.Height - 1);
+        //            XInc = (FloatType)(maxX - minX) / (mainBmp.Width - 1);
+        //            YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
 
         //            //createMandlebrotImage();
         //            CreateMandelbrotImageThreads();
