@@ -37,7 +37,8 @@ namespace Mandlebrot_Set
         const int bitmapWidth = 1800; // Size of the bitmap.
         //const int bitmapWidth = 1040; // Size of the bitmap.
         const int bitmapHeight = 1040;
-        Point mainBmpLocationInForm = new Point();
+        private Point mainBmpLocationInForm = new Point();
+        private bool showZoomFrames = true; // True if each frame you zoom into should be drawn on the window.
 
         private void UpdateMainBmpLocastionInForm()
         {
@@ -59,6 +60,8 @@ namespace Mandlebrot_Set
         private Point dragMouseDownPoint = Point.Empty;
 
         private ArrayList mainBmpImageList = new ArrayList(); // Used to contain list of MandlebrotImage values that contain the image of each zoom level and associated Mandlebrot X and Y min and max values.
+        private const int maxImages = 20;
+        private int imageListDisplayedElCount = 0;
 
         private const FloatType baseval = 2.0;
         private const FloatType breakoutval = baseval * baseval;
@@ -162,6 +165,7 @@ namespace Mandlebrot_Set
             typeof(Panel).GetProperty("DoubleBuffered",
                           BindingFlags.NonPublic | BindingFlags.Instance)
              .SetValue(panel1, true, null);
+            DoubleBuffered = true;
 
             //Quadruple x;
             //Quadruple y = 10;
@@ -206,7 +210,122 @@ namespace Mandlebrot_Set
         //    // Use this method to report progress to GUI
         //}
 
+        /// <summary>
+        /// Adds the Form's mainBmp and associated minX, maxX, minY and maxY values to a stack implemented as ArrayList mainBmpImageList.
+        /// </summary>
+        private void pushBitmap()
+        {
+            // If adding an element back to the middle of the stack then clear all remaining elemments.
+            if (imageListDisplayedElCount < mainBmpImageList.Count)
+            {
+                // Run through remaining elements and clean any bitmaps.
+                for (int i = imageListDisplayedElCount; i < mainBmpImageList.Count; i++)
+                {
+                    // Remove the bitmap we're abandoning
+                    Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> tkill = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[i];
+                    Bitmap b = tkill.Item1;
+                    b.Dispose();
 
+                }
+
+                // Now remove any trailing elements.
+                mainBmpImageList.RemoveRange(imageListDisplayedElCount, mainBmpImageList.Count - imageListDisplayedElCount);
+
+            }
+
+            // If too many elements then remove one from the stack bottom and continue.
+            if (mainBmpImageList.Count >= maxImages)
+            {
+                // Remove bottom element but first clean up the bitmap we're abandoning
+                Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> tkill = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[0];
+                Bitmap b = tkill.Item1;
+                b.Dispose();
+
+                // Now remove element.
+                mainBmpImageList.RemoveAt(0);
+
+                // Decrement count to adjust "top" element in stack for removed element.
+                imageListDisplayedElCount--;
+            }
+
+            // Now create another element for the current bitmap at the end.
+            var t = Tuple.Create((Bitmap)mainBmp.Clone(), minX, maxX, minY, maxY);
+            mainBmpImageList.Add(t);
+
+            // Update the count of the last element in the stack.
+            imageListDisplayedElCount++;
+        }
+
+        /// <summary>
+        /// Update mainBmp and associated minX, maxX, minY and maxY values from the "stack top" in ArrayList mainBmpImageList.
+        /// Note that the count of elemetns to the current stack top is imageListDisplayedElCount.  Returns true for success.
+        /// </summary>
+        private bool popBitmap()
+        {
+            if (imageListDisplayedElCount <= 1)
+            {
+                // There is no element to pop off so indicate that pop failed. (we always leave the top element on the stack).
+                return false;
+            }
+
+            // Decrement count in line with count of new "top" element in stack.
+            imageListDisplayedElCount--;
+
+            // There is an element to pop so pop it.
+            //Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> t = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[imageListDisplayedElCount-1];
+            var t = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[imageListDisplayedElCount-1];
+
+            // Copy image on stack to mainBmp
+            Graphics g = Graphics.FromImage(mainBmp);
+            g.DrawImage(t.Item1, 0, 0);
+            g.Dispose();
+            //mainBmp = t.Item1;
+
+            minX = t.Item2;
+            maxX = t.Item3;
+            minY = t.Item4;
+            maxY = t.Item5;
+
+            XInc = (FloatType)(maxX - minX) / (mainBmp.Width - 1);
+            YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
+
+            // Indicate that pop succeeded.
+            return true;
+        }
+        /// <summary>
+        /// Gets the next image in the stack (mainBmpImageLIst) and updates mainBmp and associated minX, maxX, minY and maxY values from it.
+        /// </summary>
+        /// <returns>True if there was a next image otherwise false</returns>
+        private bool nextBitmap()
+        {
+            if (imageListDisplayedElCount >= mainBmpImageList.Count)
+            {
+                // There is no element to return so indicate this.
+                return false;
+            }
+
+            // There is a next element so update mainBmp (etc) from it.
+            Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> t = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[imageListDisplayedElCount];
+            // Copy image on stack to mainBmp
+            Graphics g = Graphics.FromImage(mainBmp);
+            g.DrawImage(t.Item1, 0, 0);
+            g.Dispose();
+
+            //mainBmp = t.Item1;
+            minX = t.Item2;
+            maxX = t.Item3;
+            minY = t.Item4;
+            maxY = t.Item5;
+
+            XInc = (FloatType)(maxX - minX) / (mainBmp.Width - 1);
+            YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
+
+            // Increment count in line with count of new "top" element in stack.
+            imageListDisplayedElCount++;
+
+            // Retrieve a new element so indicate success.
+            return true;
+        }
 
 //When any thread finishes, the backgroundWorkerCalcs_RunWorkerCompleted function 
 //    •	Copies the updated bitmap to the main bitmap and disposes of the section bmp and invalidate that section of the main bmp image so it is repainted.
@@ -276,9 +395,6 @@ namespace Mandlebrot_Set
                     // Cleanup
                     mainBmpGraphics.Dispose();
 
-
-
-
                     if (imageCalcInProgress == false || lastImageRowCalcRequested + 1 >= bitmapHeight)
                     {
                         // We've finished requesting calculation of any further elements.
@@ -289,6 +405,7 @@ namespace Mandlebrot_Set
                             lastImageRowCalcRequested = -1;
                             UseWaitCursor = false;
                             Cursor = Cursors.Default;
+                            pushBitmap();
                         }
                     }
                     else
@@ -596,6 +713,42 @@ namespace Mandlebrot_Set
             //src = e.ClipRectangle;
             //src.Offset(-mainBmpLocationInForm.X, -mainBmpLocationInForm.Y);
             e.Graphics.DrawImage(mainBmp, dest, src, GraphicsUnit.Pixel);
+
+            if (showZoomFrames)
+            {
+
+                // Draw zoom rectangles for remaining images in the stack.
+                FloatType zoomMinX, zoomMaxX, zoomMinY, zoomMaxY;
+                int zoomX, zoomY, zoomWidth, zoomHeight;
+                Pen p = new Pen(Color.White);
+                Rectangle zoomRect;
+                FloatType zoomPixelXInc = bitmapWidth / (maxX - minX);
+                FloatType zoomPixelYInc = bitmapHeight / (maxY - minY);
+
+
+                for (int i = imageListDisplayedElCount; i < mainBmpImageList.Count; i++)
+                {
+                    // Find display rectange for this image
+                    Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> t = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[i];
+
+                    zoomMinX = t.Item2;
+                    zoomMaxX = t.Item3;
+                    zoomMinY = t.Item4;
+                    zoomMaxY = t.Item5;
+
+                    zoomWidth = (int)((zoomMaxX - zoomMinX) * zoomPixelXInc);
+                    zoomHeight = (int)((zoomMaxY - zoomMinY) * zoomPixelYInc);
+                    zoomX = mainBmpLocationInForm.X + (int)((zoomMinX - minX) * zoomPixelXInc);
+                    zoomY = mainBmpLocationInForm.Y + (int)((zoomMinY - minY) * zoomPixelYInc);
+
+                    zoomRect = new Rectangle(zoomX, zoomY, zoomWidth, zoomHeight);
+                    e.Graphics.DrawRectangle(p, zoomRect);
+                }
+
+                // Dispose of pen.
+                p.Dispose();
+
+            }
             //e.Graphics.DrawImage(mainBmp, Math.Max((this.Width - mainBmp.Width) / 2, 0), Math.Max((this.Height - mainBmp.Height) / 2, 0), 9, 9);
 
 #if ShowPaintThreadProgress
@@ -622,6 +775,16 @@ namespace Mandlebrot_Set
             {
                 mainBmp.Dispose();
                 mainBmp = null;
+            }
+
+            // Dispose of bitmaps in image stack.
+            for (int i = 0; i < mainBmpImageList.Count; i++)
+            {
+                // Remove the bitmap we're abandoning
+                Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType> tkill = (Tuple<Bitmap, FloatType, FloatType, FloatType, FloatType>)mainBmpImageList[i];
+                Bitmap b = tkill.Item1;
+                if (b != null)
+                    b.Dispose();
             }
 
         }
@@ -779,6 +942,59 @@ namespace Mandlebrot_Set
                         Application.Exit();
                     }
                     break;
+
+               // case (char)Keys.Up:
+                case 'o':
+                    // Request to zoom out.
+                    e.Handled = true;
+                    if (imageCalcInProgress)
+                    {
+                        // Ignore keystroke as calculating.
+                        Console.Beep();
+                    }
+                    else
+                    {
+                        if (popBitmap())
+                        {
+                            // Succeeded in getting a new bitmap off the stack so display it.
+                            Invalidate(new Rectangle(mainBmpLocationInForm, new Size(bitmapWidth, bitmapHeight)));
+                            //Refresh();
+                        }
+                        else
+                        {
+                            // No bitmap to pop so beep.
+                            Console.Beep();
+                        }
+                    }
+                    break;
+
+
+                //case (char)Keys.Down:
+                case 'i':
+                    // Request to zoom in.
+                    e.Handled = true;
+                    if (imageCalcInProgress)
+                    {
+                        // Ignore keystroke as calculating.
+                        Console.Beep();
+                    }
+                    else
+                    {
+
+                        if (nextBitmap())
+                        {
+                            // Succeeded in getting a new bitmap off the stack so display it.
+                            Invalidate(new Rectangle(mainBmpLocationInForm, new Size(bitmapWidth, bitmapHeight)));
+                            //Refresh();
+                        }
+                        else
+                        {
+                            // No bitmap to go to so beep.
+                            Console.Beep();
+                        }
+                    }
+                    break;
+
             }
 
         }
@@ -816,11 +1032,6 @@ namespace Mandlebrot_Set
 
                 return screenPixel.GetPixel(0, 0);
             }
-        }
-
-        private void panel1_Paint(object sender, PaintEventArgs e)
-        {
-
         }
 
         //    private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
