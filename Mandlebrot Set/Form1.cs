@@ -469,6 +469,55 @@ namespace Mandlebrot_Set
         }
 
 
+        /// <summary>
+        /// Calculates the Mandlebrot "escape value" for a given complex number.  Note that for a graph of the Mandlebrot
+        /// set, the real and imaginary portions of the complex number are generally used as the X and Y values
+        /// for the graph and the point graphed is shown as the escape value with each distinct value generally shown as a 
+        /// different colour.
+        /// </summary>
+        /// <param name="cr">The real part of the Complex number for which the escape value is to be calculated.</param>
+        /// <returns>The Mandlebrot escape value for the given complex number.  This is an integer count of the number of 
+        /// <param name="cr">The real part of the complex number for which the escape value is to be calculated.</param>
+        /// <param name="ci">The imaginary part of the complex number for which the escape value is to be calculated.</param>
+        /// recursive calculations completed prior to a breakout value being generated or until a maximum avlue is reached.</returns>
+        private int calcMandlebrotEscapeVal(FloatType cr, FloatType ci)
+        {
+            FloatType Z;
+            FloatType zr, zi;
+            FloatType zrsqr, zisqr;
+            FloatType lastpassZr, lastpassZi;
+
+            zr = 0;
+            zi = 0;
+            zrsqr = 0;
+            zisqr = 0;
+            lastpassZi = 99999999;
+            lastpassZr = 99999999;
+            for (int i = 0; i <= maxColorIndex; i++)
+            {
+                if (zrsqr + zisqr > breakoutval)
+                    // We've broken out so exit returning pass no.
+                    return i;
+
+                if (lastpassZr == zr && lastpassZi == zi)
+                    // Value has not changed on this pass so it will never change again so escape and return max value.
+                    return maxColorIndex;
+
+                lastpassZi = zi;
+                lastpassZr = zr;
+
+                zi = zr * zi;
+                zi += zi; // Multiply by two
+                zi += ci;
+                zr = zrsqr - zisqr + cr;
+                zrsqr = zr * zr;
+                zisqr = zi * zi;
+            }
+
+            // We didn't break out so return max value.
+            return maxColorIndex;
+        }
+
 
         /// <summary>
         /// Spawns a series of threads up to maxThreads, each of which will calculate the points in successive sections of the image, defined by a start and stop row in threadInfo and
@@ -582,7 +631,7 @@ namespace Mandlebrot_Set
         private int createMandlebrotImageSection(ThreadInfo ti, BackgroundWorker bw, DoWorkEventArgs e)
         {
             int bmpX, bmpY;
-            Complex pt;
+            FloatType zr, zi;
             int Z;
             int startRow = ti.startRow;
             int endRow = ti.endRow;
@@ -609,10 +658,12 @@ namespace Mandlebrot_Set
                 for (bmpX = 0; bmpX <= myBitmapWidth - 1; bmpX++) 
                 {
                     //  Calculate point scaled coordinates.
-                    pt = new Complex (myMinX + bmpX * myXInc, myMinY + bmpY * myYInc);
+                    // pt = new Complex (myMinX + bmpX * myXInc, myMinY + bmpY * myYInc);
+                    zr = myMinX + bmpX * myXInc;
+                    zi = myMinY + bmpY * myYInc;
 
                     // Calculate Mandelbrot breakout value for this coordinate.
-                    Z = calcMandlebrotEscapeVal(pt);
+                    Z = calcMandlebrotEscapeVal(zr, zi);
 
                     // Update pixel.
                     //c = Color.FromArgb(Z, Z, Z);
