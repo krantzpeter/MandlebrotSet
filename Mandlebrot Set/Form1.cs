@@ -14,6 +14,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Threading;
 using System.Diagnostics;
+//using FloatType = System.Quadruple;
 using FloatType = System.Double;
 
 using System.Runtime.InteropServices;
@@ -40,7 +41,9 @@ namespace Mandlebrot_Set
         private Point mainBmpLocationInForm = new Point();
         private bool showZoomFrames = true; // True if each frame you zoom into should be drawn on the window.
 
-        private void UpdateMainBmpLocastionInForm()
+        private bool bHighPrecisionOn = false;
+
+        private void UpdateMainBmpLocationInForm()
         {
             mainBmpLocationInForm.X = Math.Max((ClientRectangle.Width - mainBmp.Width) / 2, 0);
             mainBmpLocationInForm.Y = Math.Max((ClientRectangle.Height - mainBmp.Height) / 2, 0);
@@ -63,15 +66,15 @@ namespace Mandlebrot_Set
         private const int maxImages = 20;
         private int imageListDisplayedElCount = 0;
 
-        private const FloatType baseval = 2.0;
-        private const FloatType breakoutval = baseval * baseval;
-        private const FloatType aspectRatio = (FloatType)bitmapWidth / (FloatType)bitmapHeight;
+        private FloatType baseval;
+        private FloatType breakoutval;
+        private FloatType aspectRatio;
 
-        private const FloatType minXBound = -baseval * aspectRatio; // Outer bounds of the Mandelbrot set.
-        private const FloatType maxXBound = baseval * aspectRatio;
-        private const FloatType minYBound = baseval;
-        private const FloatType maxYBound = -baseval;
-
+        private FloatType minXBound; // Outer bounds of the Mandelbrot set.
+        private FloatType maxXBound;
+        private FloatType minYBound;
+        private FloatType maxYBound;
+                
         // Current scaled bounds of the current image.
         //private FloatType minX = minXBound;
         //private FloatType maxX = maxXBound;
@@ -150,6 +153,15 @@ namespace Mandlebrot_Set
             //tiArrayList = new ArrayList();
             // Do setup tasks.
             mainBmp = new Bitmap(bitmapWidth, bitmapHeight);
+            baseval = 2.0;
+            breakoutval = baseval * baseval;
+            aspectRatio = (FloatType)bitmapWidth / (FloatType)bitmapHeight;
+
+            minXBound = -baseval * aspectRatio; // Outer bounds of the Mandelbrot set.
+            maxXBound = baseval * aspectRatio;
+            minYBound = baseval;
+            maxYBound = -baseval;
+
             //pictureBox1.Image = (Image)mainBmp;
             setupColors();
             InitializeThreadInfoArray();
@@ -160,7 +172,7 @@ namespace Mandlebrot_Set
 
 
             //calcMandlebrotEscapeVal(new Complex(-1, 1));
-            UpdateMainBmpLocastionInForm();
+            UpdateMainBmpLocationInForm();
 
             typeof(Panel).GetProperty("DoubleBuffered",
                           BindingFlags.NonPublic | BindingFlags.Instance)
@@ -427,41 +439,91 @@ namespace Mandlebrot_Set
         /// <param name="c">The Complex number for which the escape value is to be calculated.</param>
         /// <returns>The Mandlebrot escape value for the given complex number.  This is an integer count of the number of 
         /// recursive calculations completed prior to a breakout value being generated or until a maximum avlue is reached.</returns>
-        private int calcMandlebrotEscapeVal(Complex c)
+        //private int calcMandlebrotEscapeVal(Complex c)
+        //{
+        //    FloatType Z;
+        //    FloatType dblTmp;
+        //    Complex c1;
+        //    Complex lastpassval;
+
+        //    Z = c.Real * c.Real + c.Imaginary * c.Imaginary;
+
+        //    if (Z >= breakoutval)
+        //        // We've broken out in first pass so exit returning pass no.
+        //        return 0;
+
+        //    lastpassval = c;
+
+        //    // Create new point in form (x^2-y^2, 2xy) + c
+        //    dblTmp = c.Real * c.Imaginary;
+        //    c1 = new Complex(c.Real * c.Real - c.Imaginary * c.Imaginary, dblTmp + dblTmp) + c;
+
+        //    for (int i = 1; i <= maxColorIndex; i++)
+        //    {
+        //         if (lastpassval == c1)
+        //            // Value has not changed on this pass so it will never change again so escape and return max value.
+        //            return maxColorIndex;
+
+        //        Z = c1.Real * c1.Real + c1.Imaginary * c1.Imaginary;
+
+        //        if (Z >= breakoutval)
+        //            // We've broken out so exit returning pass no.
+        //            return i;
+
+        //        lastpassval = c1;
+        //        // Create new point in form (x^2-y^2, 2xy) + c
+        //        dblTmp = c1.Real * c1.Imaginary;
+        //        c1 = new Complex(c1.Real * c1.Real - c1.Imaginary * c1.Imaginary, dblTmp + dblTmp) + c;
+        //    }
+
+        //    // We didn't break out so return max value.
+        //    return maxColorIndex;
+        //}
+
+
+        /// <summary>
+        /// Calculates the Mandlebrot "escape value" for a given complex number.  Note that for a graph of the Mandlebrot
+        /// set, the real and imaginary portions of the complex number are generally used as the X and Y values
+        /// for the graph and the point graphed is shown as the escape value with each distinct value generally shown as a 
+        /// different colour.
+        /// </summary>
+        /// <param name="cr">The real part of the Complex number for which the escape value is to be calculated.</param>
+        /// <returns>The Mandlebrot escape value for the given complex number.  This is an integer count of the number of 
+        /// <param name="cr">The real part of the complex number for which the escape value is to be calculated.</param>
+        /// <param name="ci">The imaginary part of the complex number for which the escape value is to be calculated.</param>
+        /// recursive calculations completed prior to a breakout value being generated or until a maximum avlue is reached.</returns>
+        private int calcMandlebrotEscapeVal(Quadruple cr, Quadruple ci)
         {
-            FloatType Z;
-            FloatType dblTmp;
-            Complex c1;
-            Complex lastpassval;
+            Quadruple Z;
+            Quadruple zr, zi;
+            Quadruple zrsqr, zisqr;
+            Quadruple lastpassZr, lastpassZi;
 
-            Z = c.Real * c.Real + c.Imaginary * c.Imaginary;
-
-            if (Z >= breakoutval)
-                // We've broken out in first pass so exit returning pass no.
-                return 0;
-
-            lastpassval = c;
-
-            // Create new point in form (x^2-y^2, 2xy) + c
-            dblTmp = c.Real * c.Imaginary;
-            c1 = new Complex(c.Real * c.Real - c.Imaginary * c.Imaginary, dblTmp + dblTmp) + c;
-
-            for (int i = 1; i <= maxColorIndex; i++)
+            zr = 0;
+            zi = 0;
+            zrsqr = 0;
+            zisqr = 0;
+            lastpassZi = 99999999;
+            lastpassZr = 99999999;
+            for (int i = 0; i <= maxColorIndex; i++)
             {
-                 if (lastpassval == c1)
-                    // Value has not changed on this pass so it will never change again so escape and return max value.
-                    return maxColorIndex;
-
-                Z = c1.Real * c1.Real + c1.Imaginary * c1.Imaginary;
-
-                if (Z >= breakoutval)
+                if (zrsqr + zisqr > breakoutval)
                     // We've broken out so exit returning pass no.
                     return i;
 
-                lastpassval = c1;
-                // Create new point in form (x^2-y^2, 2xy) + c
-                dblTmp = c1.Real * c1.Imaginary;
-                c1 = new Complex(c1.Real * c1.Real - c1.Imaginary * c1.Imaginary, dblTmp + dblTmp) + c;
+                if (lastpassZr == zr && lastpassZi == zi)
+                    // Value has not changed on this pass so it will never change again so escape and return max value.
+                    return maxColorIndex;
+
+                lastpassZi = zi;
+                lastpassZr = zr;
+
+                zi = zr * zi;
+                zi += zi; // Multiply by two
+                zi += ci;
+                zr = zrsqr - zisqr + cr;
+                zrsqr = zr * zr;
+                zisqr = zi * zi;
             }
 
             // We didn't break out so return max value.
@@ -480,12 +542,12 @@ namespace Mandlebrot_Set
         /// <param name="cr">The real part of the complex number for which the escape value is to be calculated.</param>
         /// <param name="ci">The imaginary part of the complex number for which the escape value is to be calculated.</param>
         /// recursive calculations completed prior to a breakout value being generated or until a maximum avlue is reached.</returns>
-        private int calcMandlebrotEscapeVal(FloatType cr, FloatType ci)
+        private int calcMandlebrotEscapeVal(double cr, double ci)
         {
-            FloatType Z;
-            FloatType zr, zi;
-            FloatType zrsqr, zisqr;
-            FloatType lastpassZr, lastpassZi;
+            double Z;
+            double zr, zi;
+            double zrsqr, zisqr;
+            double lastpassZr, lastpassZi;
 
             zr = 0;
             zi = 0;
@@ -663,7 +725,10 @@ namespace Mandlebrot_Set
                     zi = myMinY + bmpY * myYInc;
 
                     // Calculate Mandelbrot breakout value for this coordinate.
-                    Z = calcMandlebrotEscapeVal(zr, zi);
+                    if (bHighPrecisionOn)
+                        Z = calcMandlebrotEscapeVal(zr, zi);
+                    else 
+                        Z = calcMandlebrotEscapeVal((double)zr, (double)zi);
 
                     // Update pixel.
                     //c = Color.FromArgb(Z, Z, Z);
@@ -909,6 +974,7 @@ namespace Mandlebrot_Set
                 //YInc = (FloatType)(maxY - minY) / (mainBmp.Height - 1);
 
                 //createMandlebrotImage();
+                // Switch to Quadruple instead of double values when (Math.Abs(XInc)<8.0E-16 || Math.Abs(YInc)<8.0E-16)
                 CreateMandelbrotImageThreads(myMinX, myMaxX, myMinY, myMaxY);
 
                 //this.Invalidate();
@@ -1053,7 +1119,7 @@ namespace Mandlebrot_Set
 
         private void Form1_SizeChanged(object sender, EventArgs e)
         {
-            UpdateMainBmpLocastionInForm();
+            UpdateMainBmpLocationInForm();
             Invalidate();
         }
 

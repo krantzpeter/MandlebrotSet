@@ -5,6 +5,7 @@ using System.Text;
 using System.Drawing;
 using System.ComponentModel;
 using System.Threading;
+//using FloatType = System.Quadruple;
 using FloatType = System.Double;
 
 namespace Mandlebrot_Set
