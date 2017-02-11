@@ -14,18 +14,22 @@ namespace Mandlebrot_Set
     {
         //public bool threadFinished = false;
         //public CancellationTokenSource cts = null;
-        public int mainBmpWidth;    // the width and height of the main bitmap in pixels
-        public int mainBmpHeight;
-        public int startRow;       // the pixel row number (first row = 0) of the first row in the main image to calc
-        public int endRow;         // the row number of last row to calc
-        public FloatType minX;        // FloatType precision min X value of scaled bounds of the main Bmp image 
-        public FloatType maxX;        // FloatType precision max X value of scaled bounds of the main Bmp image 
-        public FloatType minY;        // FloatType precision min Y value of scaled bounds of the main Bmp image
-        public FloatType maxY;        // FloatType precision max Y value of scaled bounds of the main Bmp image
+
+        // the pixel row number (first row = 0) of the first row in the main image to calc
+        public int startRow
+            { get; set; }
+        
+        // the row number of last row to calc
+        public int endRow
+            { get; set; }
+
+        // the full image that we're trying to calculate via threads.
+        public MandlebrotImage fullMandImage;
         public Bitmap bmpSection = null; // working bmp with width mainBmpWidth and height (endRow – startRow + 1)
 
-        
-        public BackgroundWorker bwThread;
+        // The background worker thread
+        public BackgroundWorker bwThread
+            { get; set; }
 
 
         public ThreadInfo()

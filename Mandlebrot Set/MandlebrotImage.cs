@@ -13,33 +13,39 @@ using FloatType = System.Double;
 
 namespace Mandlebrot_Set
 {
-    class MandlebrotImage
+    public class MandlebrotImage
     {
         // Current scaled bounds of the current image.
         public myRect mandRect
-        { get; set; }
+            { get; set; }
         public Bitmap mainBmp
-        { get; set; } 
+            { get; set; }
+
+        private bool m_bitmapCalculated;
         public bool bitmapCalculated
-        { get; }
+            { get { return m_bitmapCalculated; } }
+
+        // Set to the form which should be updated when the image is calculated
+        public Form1 formToUpdate
+            { get; set; } = null;
 
         public static Color BackColor
-        { get; set; }
+            { get; set; }
 
         private static readonly object _locker = new object();
-        private static int maxThreads = 16;
+        private static readonly int maxThreads = 16;
         private static ThreadInfo[] threadInfoArray = null;
         private static int numberActiveBackGroundThreads = 0; // To count number of active threads.
         // private Boolean threadsActive = false;
         private static bool imageCalcInProgress = false;
-        public const int bitmapWidth = 1800 / 2; // Size of the bitmap.
+        public static readonly int bitmapWidth = 1800 / 2; // Size of the bitmap.
         //const int bitmapWidth = 1040; // Size of the bitmap.
-        public const int bitmapHeight = 1040 / 2;
+        public static readonly int bitmapHeight = 1040 / 2;
         //private const int bitmapWidth = 81;  // Size of the bitmap.
         //private const int bitmapHeight = 81;
-        private const int pixelsToCalcPerThread = 50000;
-        private const int rowsToCalcPerThread = pixelsToCalcPerThread / bitmapWidth;
-        private int lastImageRowCalcRequested = -1;  // Counts the number of rows in the main bitmap have been calculated by currently active threads.
+        private static readonly int pixelsToCalcPerThread = 50000;
+        private static readonly int rowsToCalcPerThread = pixelsToCalcPerThread / bitmapWidth;
+        private static int lastImageRowCalcRequested = -1;  // Counts the number of rows in the main bitmap have been calculated by currently active threads.
 
         // BackgroundWorker variables to assist with multiple threads for time consuming calculations.
         //private BackgroundWorker[] threadArray = new BackgroundWorker[maxThreads];
@@ -55,7 +61,7 @@ namespace Mandlebrot_Set
         private static readonly FloatType maxYBound;
 
         //private const int maxColorIndex = 768;
-        private const int maxColorIndex = 768;
+        private static readonly int maxColorIndex = 768;
         private static Color[] colors;
         private static bool bHighPrecisionOn = false;
 
@@ -183,18 +189,18 @@ namespace Mandlebrot_Set
                     // Thread has been cancelled so exit without further updates.
                     return;
                 }
-
+                
                 // Find which threadInfo element this is so that we can reinstatiate this thread with the next section of the main bmp.
                 ThreadInfo ti = null;
                 ti = Array.Find(threadInfoArray, element => element.bwThread == worker);
-                for (int i = 0; i < maxThreads; i++)
-                {
-                    if (threadInfoArray[i].bwThread == worker)
-                    {
-                        ti = threadInfoArray[i];
-                        break;
-                    }
-                }
+                //for (int i = 0; i < maxThreads; i++)
+                //{
+                //    if (threadInfoArray[i].bwThread == worker)
+                //    {
+                //        ti = threadInfoArray[i];
+                //        break;
+                //    }
+                //}
 
 #if ShowPaintThreadProgress
                 Debug.WriteLine("backgroundWorkerCalcs_RunWorkerCompleted() Thread ID " + Thread.CurrentThread.ManagedThreadId + " finished calculating rows " + ti.startRow + ", " + ti.endRow);
@@ -203,26 +209,34 @@ namespace Mandlebrot_Set
                 {
                     // Copy the update image from this sectionBmp to the main bmp.
                     int bmpSectionHeight = ti.endRow - ti.startRow + 1;
-                    Rectangle updateRect = new Rectangle(0, ti.startRow, ti.mainBmpWidth, bmpSectionHeight);
+                    Rectangle updateRect = new Rectangle(0, ti.startRow, bitmapWidth, bmpSectionHeight);
                     //updateRect.X = Math.Max((this.ClientRectangle.Width - mainBmp.Width) / 2, 0);
                     //CopyBitmapSectionToFormBitmap(ti.bmpSection, updateRect);
 
 
                     // Copy the update image from this sectionBmp to the main bmp.
-                    Graphics mainBmpGraphics = Graphics.FromImage(mainBmp);
+                    Graphics mainBmpGraphics = Graphics.FromImage(ti.fullMandImage.mainBmp);
                     //updateRect.Offset(mainBmpLocationInForm);
                     mainBmpGraphics.DrawImage(ti.bmpSection, updateRect, new Rectangle(0, 0, ti.bmpSection.Width, ti.bmpSection.Height), GraphicsUnit.Pixel);
 
+                    // Cleanup
+                    mainBmpGraphics.Dispose();
+
+
                     // Change coords to the correct psn in the form (vs the bitmap) so it can be invalidated.
-                    updateRect.Offset(mainBmpLocationInForm);
-                    this.Invalidate(updateRect);
+                    Form1 mainForm = ti.fullMandImage.formToUpdate;
+                    if (mainForm != null)
+                    {
+                        //  There is a form to update so do it.
+                        updateRect.Offset(mainForm.mainBmpLocationInForm);
+                        mainForm.Invalidate(updateRect);
+                    }
+
+
                     //Application.DoEvents();
 #if ShowPaintThreadProgress
                     Debug.WriteLine("backgroundWorkerCalcs_RunWorkerCompleted() Thread ID " + Thread.CurrentThread.ManagedThreadId + " invalidated Rect: " + updateRect);
 #endif
-
-                    // Cleanup
-                    mainBmpGraphics.Dispose();
 
                     if (imageCalcInProgress == false || lastImageRowCalcRequested + 1 >= bitmapHeight)
                     {
@@ -231,16 +245,17 @@ namespace Mandlebrot_Set
                         {
                             // The final running thread has just ended so we're finished calculating.
                             imageCalcInProgress = false;
+                            ti.fullMandImage.m_bitmapCalculated = true;
                             lastImageRowCalcRequested = -1;
-                            UseWaitCursor = false;
-                            Cursor = Cursors.Default;
-                            pushBitmap();
+                            mainForm.UseWaitCursor = false;
+                            mainForm.Cursor = Cursors.Default;
+                            mainForm.pushBitmap();
                         }
                     }
                     else
                     {
                         // We've not finished calculation so add another thread.
-                        AddImageCalcThread(ti);
+                        SetAndActivateThreadToCalcNextImageSection(ti);
                     }
                 }
             }
@@ -446,35 +461,31 @@ namespace Mandlebrot_Set
                     else
                     {
                         // Thread is available so set it up and start it.
-                        AddImageCalcThread(threadInfoArray[threadNum]);
+                        ThreadInfo ti = threadInfoArray[threadNum];
+                        ti.fullMandImage = this;
+                        SetAndActivateThreadToCalcNextImageSection(ti);
                     }
                 }
             }
 
         }
 
-        private void AddImageCalcThread(ThreadInfo ti)
+        private static void SetAndActivateThreadToCalcNextImageSection(ThreadInfo ti)
         {
             // Grab lock to make sure that no other thread updates the lastImageRowCalcRequested or numberActiveBackGroundThreads.
             lock (_locker)
             {
                 ti.startRow = lastImageRowCalcRequested + 1;
-                ti.mainBmpWidth = bitmapWidth;
-                ti.mainBmpHeight = bitmapHeight;
 
-                if (ti.startRow >= ti.mainBmpHeight)
+                if (ti.startRow >= bitmapHeight)
                 {
                     // We've finished calculating the image so exit.
                     return;
                     //throw new Exception("ERROR - AddImageCalcThread() requested to calc rows beyond end of image.  Start row " + ti.startRow + " whereas image length " + ti.mainBmpHeight + ".");
                 }
 
-                ti.endRow = Math.Min(ti.startRow + rowsToCalcPerThread - 1, ti.mainBmpHeight - 1);
+                ti.endRow = Math.Min(ti.startRow + rowsToCalcPerThread - 1, bitmapHeight - 1);
                 lastImageRowCalcRequested = ti.endRow;
-                ti.minX = mandRect.X;
-                ti.maxX = mandRect.Right;
-                ti.minY = mandRect.Y;
-                ti.maxY = mandRect.Bottom;
 
                 //Call the "RunWorkerAsync()" method of the thread.  
                 //This will call the delegate method "backgroundWorkerFiles_DoWork()" method defined above.  
@@ -512,11 +523,10 @@ namespace Mandlebrot_Set
             int Z;
             int startRow = ti.startRow;
             int endRow = ti.endRow;
-            int myBitmapWidth = ti.mainBmpWidth;
-            FloatType myMinX = ti.minX;
-            FloatType myMinY = ti.minY;
-            FloatType myXInc = (FloatType)(ti.maxX - myMinX) / (ti.mainBmpWidth);
-            FloatType myYInc = (FloatType)(ti.maxY - myMinY) / (ti.mainBmpHeight);
+            FloatType myMinX = ti.fullMandImage.mandRect.X;
+            FloatType myMinY = ti.fullMandImage.mandRect.Y;
+            FloatType myXInc = (FloatType)(ti.fullMandImage.mandRect.Right - myMinX) / (bitmapWidth);
+            FloatType myYInc = (FloatType)(ti.fullMandImage.mandRect.Bottom - myMinY) / (bitmapHeight);
             Bitmap bmp = ti.bmpSection;
 
             //if (ti.endRow == bitmapHeight - 1)
@@ -533,7 +543,7 @@ namespace Mandlebrot_Set
 
             for (bmpY = startRow; bmpY <= endRow; bmpY++)
             {
-                for (bmpX = 0; bmpX <= myBitmapWidth - 1; bmpX++)
+                for (bmpX = 0; bmpX <= bitmapWidth - 1; bmpX++)
                 {
                     //  Calculate point scaled coordinates.
                     // pt = new Complex (myMinX + bmpX * myXInc, myMinY + bmpY * myYInc);
@@ -563,10 +573,6 @@ namespace Mandlebrot_Set
             // Normal exit.
             return 0;
         }
-
-
-
-
 
     }
 

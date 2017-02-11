@@ -28,14 +28,18 @@ namespace Mandlebrot_Set
         // Thread info array.
         //private ArrayList tiArrayList;
         //private static int maxThreads = 4;
-        private Point mainBmpLocationInForm = new Point();
+        public Point mainBmpLocationInForm
+            { get; set; } = new Point();
+
         private bool showZoomFrames = true; // True if each frame you zoom into should be drawn on the window.
         private MandlebrotImage dispMandImage = new MandlebrotImage();
 
         private void UpdateMainBmpLocationInForm()
         {
-            mainBmpLocationInForm.X = Math.Max((ClientRectangle.Width - dispMandImage.mainBmp.Width) / 2, 0);
-            mainBmpLocationInForm.Y = Math.Max((ClientRectangle.Height - dispMandImage.mainBmp.Height) / 2, 0);
+            mainBmpLocationInForm = new Point(
+                Math.Max((ClientRectangle.Width - dispMandImage.mainBmp.Width) / 2, 0),
+                Math.Max((ClientRectangle.Height - dispMandImage.mainBmp.Height) / 2, 0)
+            );
         }
 
         private Rectangle dragBoxFromMouseDown = Rectangle.Empty;

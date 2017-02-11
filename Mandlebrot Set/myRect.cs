@@ -7,13 +7,14 @@ using FloatType = System.Double;
 
 namespace Mandlebrot_Set
 {
-    class myRect
+    public class myRect
     {
         public FloatType X { get; set; }
         public FloatType Y { get; set; }
         public FloatType Right { get; set; }
         public FloatType Bottom { get; set; }
         public FloatType Width { get { return Right - X; } set { Right = X + Width; } }
-        public FloatType Height { get { return Bottom - Y ; } set { Bottom = Y + Height; } }
+        public FloatType Height { get { return Bottom - Y ; } set { Bottom = Y + Height; } } 
+
     }
 }
