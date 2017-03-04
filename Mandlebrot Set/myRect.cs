@@ -16,5 +16,13 @@ namespace Mandlebrot_Set
         public FloatType Width { get { return Right - X; } set { Right = X + Width; } }
         public FloatType Height { get { return Bottom - Y ; } set { Bottom = Y + Height; } } 
 
+        public myRect CopyFrom(myRect another)
+        {
+            this.X = another.X;
+            this.Y = another.Y;
+            this.Right = another.Right;
+            this.Bottom = another.Bottom;
+            return this;
+        }
     }
 }

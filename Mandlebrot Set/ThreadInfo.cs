@@ -24,7 +24,7 @@ namespace Mandlebrot_Set
             { get; set; }
 
         // the full image that we're trying to calculate via threads.
-        public MandlebrotImage fullMandImage;
+        public MandImage fullMandImage;
         public Bitmap bmpSection = null; // working bmp with width mainBmpWidth and height (endRow – startRow + 1)
 
         // The background worker thread
