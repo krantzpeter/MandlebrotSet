@@ -615,9 +615,11 @@ namespace Mandlebrot_Set
                 g.Clear(BackColor);
             }
 
+#if ShowPaintThreadProgress
             Debug.WriteLine("createMandlebrotImageSection() Thread ID " + Thread.CurrentThread.ManagedThreadId + " started to calc rows " + ti.startRow + ", " + ti.endRow);
             //Debug.WriteLine("createMandlebrotImageSection() Thread ID " + Thread.CurrentThread.ManagedThreadId + " XInc, YInc " + XInc + ", " + YInc);
             //Debug.WriteLine("createMandlebrotImageSection() Thread ID " + Thread.CurrentThread.ManagedThreadId + " myYInc " + myYInc + " yStart " + (myMinY + startRow * myYInc));
+#endif
 
             for (bmpY = startRow; bmpY <= endRow; bmpY++)
             {

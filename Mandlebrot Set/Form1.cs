@@ -1,5 +1,5 @@
 ﻿
-// #define debugPaint
+//#define debugPaint
 //#define ShowPaintThreadProgress
 #define stdColors
 
@@ -297,7 +297,6 @@ namespace Mandlebrot_Set
             {
 
                 // Draw zoom rectangles for remaining images in the stack.
-                FloatType zoomMinX, zoomMaxX, zoomMinY, zoomMaxY;
                 int zoomX, zoomY, zoomWidth, zoomHeight;
                 Pen p = new Pen(Color.White);
                 Rectangle zoomRect;
@@ -469,12 +468,13 @@ namespace Mandlebrot_Set
             UseWaitCursor = oldUseWaitCursor;
         }
 
-        public void Form1_KeyPress(object sender, System.Windows.Forms.KeyPressEventArgs e)
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            switch (e.KeyChar)
+
+            switch (keyData)
             {
-                case (char)Keys.Escape:
-                    e.Handled = true;
+                case Keys.Escape:
                     if (dragActive)
                     {
                         // There's a drag going on so assume pressing escape is trying to cancel it.
@@ -487,12 +487,12 @@ namespace Mandlebrot_Set
                     {
                         Application.Exit();
                     }
-                    break;
+                    return true;    // indicate that you handled this keystroke
 
-               // case (char)Keys.Up:
-                case 'o':
+                // case (char)Keys.Up:
+                case Keys.O:
+                case Keys.Left:
                     // Request to zoom out.
-                    e.Handled = true;
                     if (MandImage.imageCalcInProgress)
                     {
                         // Ignore keystroke as calculating.
@@ -512,13 +512,12 @@ namespace Mandlebrot_Set
                             Console.Beep();
                         }
                     }
-                    break;
-
+                    return true;    // indicate that you handled this keystroke
 
                 //case (char)Keys.Down:
-                case 'i':
+                case Keys.I:
+                case Keys.Right:
                     // Request to zoom in.
-                    e.Handled = true;
                     if (MandImage.imageCalcInProgress)
                     {
                         // Ignore keystroke as calculating.
@@ -539,7 +538,11 @@ namespace Mandlebrot_Set
                             Console.Beep();
                         }
                     }
-                    break;
+                    return true;    // indicate that you handled this keystroke
+
+                default:
+                    // Call the base class
+                    return base.ProcessCmdKey(ref msg, keyData);
 
             }
 
@@ -582,7 +585,7 @@ namespace Mandlebrot_Set
             }
         }
 
-        //    private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
+         //    private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
         //    {
         //        // Remember the point where the mouse down occurred. 
         //        dragMouseDownPoint = e.Location;
