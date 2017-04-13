@@ -19,6 +19,7 @@ using FloatType = System.Double;
 
 using System.Runtime.InteropServices;
 using System.Reflection;
+using AviFile;
 
 namespace Mandlebrot_Set
 {
@@ -537,6 +538,37 @@ namespace Mandlebrot_Set
                             // No bitmap to go to so beep.
                             Console.Beep();
                         }
+                    }
+                    return true;    // indicate that you handled this keystroke
+
+                case Keys.W:
+                    // Write images to file
+                    if (mainBmpImageList.Count <= 0)
+                    {
+                        // No images to write.
+                        Console.Beep();
+                        return true;    // indicate that you handled this keystroke
+                    }
+
+                    // Write images in arraylist
+                    string newFileName = @"E:\UP\Peter4\Documents\Visual Studio 2015\Projects\Mandlebrot Set\Mandlebrot Set\test.avi";
+                    AviManager newFile = new AviManager(newFileName, false);
+                    try
+                    {
+                        Bitmap bmp = ((MandImage)(mainBmpImageList[0])).MainBmp;
+
+                        VideoStream newStream = newFile.AddVideoStream(false, 1, bmp);
+                        for (int n = 1; n < mainBmpImageList.Count; n++)
+                        {
+                            bmp = ((MandImage)(mainBmpImageList[n])).MainBmp;
+                            newStream.AddFrame(bmp);
+                        }
+                        newFile.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        newFile.Close();
+                        throw ex;
                     }
                     return true;    // indicate that you handled this keystroke
 
