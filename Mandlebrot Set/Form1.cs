@@ -428,6 +428,35 @@ namespace Mandlebrot_Set
             }
         }
 
+        /// <summary>
+        /// Creates a video of a zooming in set of images starting with displayed image.
+        /// </summary>
+        private void CreateZoomVideo()
+        {
+            const int ZoomYInc = 5;
+
+            // Create copy of start image as start point
+            MandImage writeMandImage = new MandImage();
+            dispMandImage
+
+            // Create a zoom rectangle just a bit smaller than the current rectangle.
+            Rectangle r = new Rectangle();
+            r = this.Bounds;
+            r.Height -= (ZoomYInc + ZoomYInc);
+            r.Y += ZoomYInc;
+            r.X += (int)(ZoomYInc * MandImage.aspectRatio);
+            r.Width = (int)(r.Height * MandImage.aspectRatio);
+            for (int i = 1; i <= 10; i++)
+            {
+                
+                //this.panel1.Size = (Size)e.Location - (Size)dragMouseDownPoint;
+                this.panel1.Height = Math.Min(e.X - dragMouseDownPoint.X, e.Y - dragMouseDownPoint.Y);
+                this.panel1.Width = (int)(this.panel1.Height * MandImage.aspectRatio);
+
+            }
+
+        }
+
         //private void timer1_Tick(object sender, EventArgs e)
         //{
         //    //Check whether threads are finished.

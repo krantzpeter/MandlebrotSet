@@ -28,6 +28,7 @@ namespace Mandlebrot_Set
                     mandRect = value;
                     XInc = (FloatType)(mandRect.Width) / (MainBmp.Width);
                     YInc = (FloatType)(mandRect.Height) / (MainBmp.Height);
+                    m_bitmapCalculated = false; // Flag that this image's rectangele has been changed so needs recalculating.
                 }
             }
 
@@ -486,8 +487,11 @@ namespace Mandlebrot_Set
             MandRect.Bottom = MandRect.Y + r.Bottom * YInc;
             MandRect.Y += r.Y * YInc;
 
+            m_bitmapCalculated = false; // Flag that this image's rectangele has been changed so needs recalculating.
+
             XInc = (FloatType)(MandRect.Width) / (MainBmp.Width);
             YInc = (FloatType)(MandRect.Height) / (MainBmp.Height);
+
         }
 
 
